@@ -28,6 +28,8 @@
     .actions { justify-self:end; display:flex; gap:8px; direction:ltr; }
     .mute { display:flex; align-items:center; gap:7px; padding:9px 12px; border-radius:14px; color:var(--ink); font:700 .75rem Cairo; cursor:pointer; }
     .mute:hover { border-color:var(--cyan); transform:translateY(-1px); }
+    .speed-control { border-color:rgba(255,209,102,.3); }
+    .speed-control:hover { border-color:var(--gold); }
     .mute:active { transform:translateY(1px); }
     .overlay { position:absolute; inset:0; display:grid; place-items:center; padding:22px; background:linear-gradient(135deg,rgba(3,8,24,.85),rgba(9,18,48,.62)); backdrop-filter:blur(8px); text-align:center; transition:opacity .25s, visibility .25s; }
     .overlay.hidden { opacity:0; visibility:hidden; pointer-events:none; }
@@ -57,7 +59,7 @@
     <section id="hud" class="hud" hidden>
       <div class="hud-card meter"><div class="label"><span>الرطوبة</span><span id="moistureText">100%</span></div><div class="bar"><div id="moistureBar"></div></div></div>
       <div class="hud-card scoreboard"><span class="best">النقاط الحالية</span><strong id="scoreVal">0</strong><span class="best">أفضل نتيجة: <b id="highScoreVal">0</b></span></div>
-      <div class="actions"><button id="muteButton" class="mute" type="button" aria-label="كتم الصوت"><span id="muteIcon">🔊</span><span id="muteText">الصوت</span></button></div>
+      <div class="actions"><button id="speedButton" class="mute speed-control" type="button" aria-label="تغيير سرعة الحركة"><span>⚡</span><span id="speedText">متوازن</span></button><button id="muteButton" class="mute" type="button" aria-label="كتم الصوت"><span id="muteIcon">🔊</span><span id="muteText">الصوت</span></button></div>
     </section>
     <div id="actionHint" class="hint hidden">انقر أو اضغط <b>Space</b> للقفز والرفرفة</div>
     <section id="startScreen" class="overlay"><div class="panel"><div class="mascot">🐠</div><h1>سمكة خارج الماء</h1><p class="intro">اقفز أبعد ما يمكنك، اجمع قطرات الماء، وراوغ القطط والأسطح الساخنة. كل ثانية في الهواء تمنحك نقاطًا إضافية، لكن الجفاف لا ينتظر!</p><div class="tips"><span class="tip"><b>Space</b> رفرفة</span><span class="tip"><b>💧</b> رطوبة</span><span class="tip"><b>⚡</b> سرعة متزايدة</span></div><button id="startButton" class="primary" type="button">ابدأ المغامرة ◀</button><div class="small">تعمل باللمس والفأرة ولوحة المفاتيح</div></div></section>
@@ -68,11 +70,12 @@
   'use strict';
   const canvas = document.getElementById('gameCanvas'), ctx = canvas.getContext('2d');
   const $ = id => document.getElementById(id);
-  const ui = { hud:$('hud'), start:$('startScreen'), over:$('gameOverScreen'), hint:$('actionHint'), score:$('scoreVal'), high:$('highScoreVal'), final:$('finalScore'), finalHigh:$('finalHighScore'), reason:$('gameOverReason'), title:$('gameOverTitle'), bar:$('moistureBar'), moisture:$('moistureText'), mute:$('muteButton'), muteIcon:$('muteIcon'), muteText:$('muteText') };
+  const ui = { hud:$('hud'), start:$('startScreen'), over:$('gameOverScreen'), hint:$('actionHint'), score:$('scoreVal'), high:$('highScoreVal'), final:$('finalScore'), finalHigh:$('finalHighScore'), reason:$('gameOverReason'), title:$('gameOverTitle'), bar:$('moistureBar'), moisture:$('moistureText'), mute:$('muteButton'), muteIcon:$('muteIcon'), muteText:$('muteText'), speed:$('speedButton'), speedText:$('speedText') };
   const W = canvas.width, H = canvas.height, GROUND = 602;
-  let state='start', score=0, high=0, frame=0, speed=5, shake=0, muted=false, audio=null, hintTimer, graceFrames=0;
+  let state='start', score=0, high=0, frame=0, speed=5, shake=0, muted=false, audio=null, hintTimer, graceFrames=0, speedLevel=2;
+  const speedModes=[{name:'هادئ',base:3.7,max:7.2},{name:'متوازن',base:5,max:9.5},{name:'سريع',base:6.5,max:12}];
   try { high = Number(localStorage.getItem('fish_high_score') || 0); muted = localStorage.getItem('fish_muted') === '1'; } catch (_) {}
-  ui.high.textContent = high; updateMute();
+  ui.high.textContent = high; updateMute(); updateSpeedControl();
   const fish = { x:220, y:285, vy:0, angle:0, moisture:100, r:34 };
   let obstacles=[], drops=[], particles=[], texts=[], stars=[], buildings=[];
   const rand=(a,b)=>a+Math.random()*(b-a), clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -83,15 +86,17 @@
   function initAudio(){ if (audio) { if (audio.state==='suspended') audio.resume(); return; } try { audio=new (window.AudioContext||window.webkitAudioContext)(); } catch (_) { audio=null; } }
   function sound(kind){ if (!audio || muted) return; try { const o=audio.createOscillator(), g=audio.createGain(), now=audio.currentTime; o.connect(g); g.connect(audio.destination); const cfg={flap:['triangle',180,420,.12,.12],drop:['sine',420,980,.1,.12],hit:['sawtooth',160,55,.28,.16],over:['sine',300,70,.7,.18],best:['sine',520,920,.35,.16]}[kind]||['sine',220,220,.1,.08]; o.type=cfg[0]; o.frequency.setValueAtTime(cfg[1],now); o.frequency.exponentialRampToValueAtTime(cfg[2],now+cfg[3]); g.gain.setValueAtTime(cfg[4],now); g.gain.exponentialRampToValueAtTime(.001,now+cfg[3]); o.start(now); o.stop(now+cfg[3]); } catch (_) {} }
   function updateMute(){ const on=!muted; ui.muteIcon.textContent=on?'🔊':'🔇'; ui.muteText.textContent=on?'الصوت':'مكتوم'; ui.mute.setAttribute('aria-label',on?'كتم الصوت':'تشغيل الصوت'); }
+  function updateSpeedControl(){ const mode=speedModes[speedLevel-1]; ui.speedText.textContent=mode.name; ui.speed.setAttribute('aria-label','سرعة الحركة: '+mode.name+' — اضغط للتغيير'); }
   ui.mute.addEventListener('click',e=>{ e.stopPropagation(); muted=!muted; try{localStorage.setItem('fish_muted',muted?'1':'0');}catch(_){} updateMute(); if(!muted){initAudio();sound('drop');} });
+  ui.speed.addEventListener('click',e=>{ e.stopPropagation(); speedLevel=speedLevel%speedModes.length+1; updateSpeedControl(); if(state==='playing'){ speed=speedModes[speedLevel-1].base; scoreText(fish.x,fish.y-55,'سرعة: '+speedModes[speedLevel-1].name,'#ffd166'); sound('drop'); } });
   function burst(x,y,color,count=12,force=4){ for(let i=0;i<count;i++) particles.push({x,y,vx:rand(-force,force),vy:rand(-force,force),r:rand(2,6),life:1,decay:rand(.018,.04),color,grav:.08}); if(particles.length>450) particles.splice(0,particles.length-450); }
   function scoreText(x,y,text,color='#ffd166'){ texts.push({x,y,text,life:1,color}); }
   function flap(){ if(state!=='playing') return; initAudio(); fish.vy=-10.4; fish.angle=-.35; burst(fish.x-22,fish.y+10,'#75efff',10,3.5); sound('flap'); }
-  function start(){ initAudio(); state='playing'; score=0; speed=5; frame=0; graceFrames=150; shake=0; fish.x=220; fish.y=280; fish.vy=0; fish.angle=0; fish.moisture=100; obstacles=[]; drops=[]; particles=[]; texts=[]; ui.start.classList.add('hidden'); ui.over.classList.add('hidden'); ui.hud.hidden=false; ui.hint.classList.remove('hidden'); clearTimeout(hintTimer); hintTimer=setTimeout(()=>ui.hint.classList.add('hidden'),4200); }
+  function start(){ initAudio(); state='playing'; score=0; speed=speedModes[speedLevel-1].base; frame=0; graceFrames=150; shake=0; fish.x=220; fish.y=280; fish.vy=0; fish.angle=0; fish.moisture=100; obstacles=[]; drops=[]; particles=[]; texts=[]; ui.start.classList.add('hidden'); ui.over.classList.add('hidden'); ui.hud.hidden=false; ui.hint.classList.remove('hidden'); clearTimeout(hintTimer); hintTimer=setTimeout(()=>ui.hint.classList.add('hidden'),4200); }
   function end(reason){ if(state!=='playing') return; state='gameover'; sound('over'); shake=14; burst(fish.x,fish.y,'#ff6b92',26,7); const n=Math.floor(score); if(n>high){high=n; try{localStorage.setItem('fish_high_score',String(high));}catch(_){} sound('best');} ui.final.textContent=n; ui.finalHigh.textContent=high; ui.high.textContent=high; ui.title.textContent=reason==='dry'?'جفّت السمكة!':'أوه لا! اصطدمت بعقبة'; ui.reason.textContent=reason==='dry'?'نفدت الرطوبة. التقط قطرات الماء وحافظ على السمكة في الهواء.':reason==='cat'?'القطة كانت أسرع هذه المرة! راوغها في المحاولة القادمة.':'السطح الساخن أوقف المغامرة. ابقَ عاليًا وواصل الرفرفة.'; ui.hud.hidden=true; ui.hint.classList.add('hidden'); ui.over.classList.remove('hidden'); }
   function circleRect(o){ const x=clamp(fish.x,o.x,o.x+o.w), y=clamp(fish.y,o.y,o.y+o.h); return (fish.x-x)**2+(fish.y-y)**2 < (fish.r*.78)**2; }
   function spawn(){ if(frame%92===0) drops.push({x:W+30,y:rand(90,460),r:16,p:rand(0,6),value:20}); if(frame%Math.max(76,155-Math.floor(score/70))===0){ const r=Math.random(); if(r<.4) obstacles.push({type:'hot',x:W+35,y:GROUND-32,w:rand(70,125),h:32}); else if(r<.76) obstacles.push({type:'pipe',x:W+35,y:GROUND-rand(140,220),w:40,h:rand(140,220)}); else obstacles.push({type:'cat',x:W+35,y:rand(140,390),w:70,h:65}); } }
-  function update(){ frame++; if(graceFrames>0) graceFrames--; speed=Math.min(9.5,5+frame/2600); if(frame%600===0) score+=10; spawn(); fish.vy+=.38; fish.y+=fish.vy; fish.angle+=(clamp(fish.vy*.065,-.45,.62)-fish.angle)*.13; if(fish.y<42){fish.y=42;fish.vy=1;} if(fish.y+fish.r>GROUND){fish.y=GROUND-fish.r;fish.vy=-.65;fish.moisture-=graceFrames>0?.015:.12; if(frame%7===0) burst(fish.x,GROUND-4,'#b7c5d1',2,2); } fish.moisture-=graceFrames>0?.015:.035; if(fish.moisture<=0){fish.moisture=0;end('dry');return;} score+=.055;
+  function update(){ frame++; if(graceFrames>0) graceFrames--; const mode=speedModes[speedLevel-1]; speed=Math.min(mode.max,mode.base+frame/2600); if(frame%600===0) score+=10; spawn(); fish.vy+=.38; fish.y+=fish.vy; fish.angle+=(clamp(fish.vy*.065,-.45,.62)-fish.angle)*.13; if(fish.y<42){fish.y=42;fish.vy=1;} if(fish.y+fish.r>GROUND){fish.y=GROUND-fish.r;fish.vy=-.65;fish.moisture-=graceFrames>0?.015:.12; if(frame%7===0) burst(fish.x,GROUND-4,'#b7c5d1',2,2); } fish.moisture-=graceFrames>0?.015:.035; if(fish.moisture<=0){fish.moisture=0;end('dry');return;} score+=.055;
     for(let i=obstacles.length-1;i>=0;i--){const o=obstacles[i];o.x-=speed;if((o.type==='cat' ? Math.hypot(fish.x-(o.x+o.w/2),fish.y-(o.y+o.h/2))<fish.r+o.w*.37 : circleRect(o))){sound('hit');end(o.type==='cat'?'cat':'hot');return;}if(o.x+o.w<-50){obstacles.splice(i,1);score+=8;scoreText(W-40,100,'+8','#ffd166');}}
     for(let i=drops.length-1;i>=0;i--){const d=drops[i];d.x-=speed;d.p+=.09;if(Math.hypot(fish.x-d.x,fish.y-d.y)<fish.r+d.r){fish.moisture=Math.min(100,fish.moisture+d.value);score+=18;scoreText(d.x,d.y,'+18','#62efff');burst(d.x,d.y,'#62efff',18,4);sound('drop');drops.splice(i,1);continue;}if(d.x<-40)drops.splice(i,1);}
     particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=p.grav;p.life-=p.decay;});particles=particles.filter(p=>p.life>0);texts.forEach(t=>{t.y-=.7;t.life-=.018;});texts=texts.filter(t=>t.life>0);shake*=.88;

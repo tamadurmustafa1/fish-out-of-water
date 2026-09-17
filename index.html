@@ -141,9 +141,9 @@
     if(returnProgress===1){ui.over.classList.add('hidden');ui.hint.classList.remove('hidden');ui.hint.textContent='🌊 عادت السمكة إلى البحر!';}
     fish.vy=-1.1;
     fish.y += (GROUND-48-fish.y)*.055;
-    fish.x += 2.4;
+    fish.x += (W-150-fish.x)*.045;
     if(returnProgress%3===0) burst(fish.x,fish.y+30,'#d8fbff',3,1.5);
-    if(returnProgress>95){
+    if(returnProgress>125){
       if(level<3){level++;try{localStorage.setItem('fish_level',String(level));}catch(_){}updateLevelControl();start();}
       else exitToMenu();
     }
@@ -168,8 +168,12 @@
     const sun=ctx.createRadialGradient(980,95,10,980,95,180);sun.addColorStop(0,'rgba(255,255,220,.98)');sun.addColorStop(.3,'rgba(255,237,133,.5)');sun.addColorStop(1,'transparent');ctx.fillStyle=sun;ctx.fillRect(780,0,440,300);
     ctx.fillStyle='#7ccf8b';ctx.beginPath();ctx.moveTo(0,GROUND-120);ctx.quadraticCurveTo(180,GROUND-215,360,GROUND-125);ctx.quadraticCurveTo(560,GROUND-235,760,GROUND-120);ctx.quadraticCurveTo(980,GROUND-220,1220,GROUND-130);ctx.lineTo(W,GROUND+10);ctx.lineTo(0,GROUND+10);ctx.fill();
     for(let x=-80;x<W+120;x+=105){const tx=x-(frame*speed*.055)%105,base=GROUND-25;ctx.fillStyle='#6b422b';ctx.fillRect(tx-7,base-95,14,95);ctx.fillStyle='#2f9e55';ctx.beginPath();ctx.arc(tx,base-115,34,0,Math.PI*2);ctx.arc(tx-27,base-94,28,0,Math.PI*2);ctx.arc(tx+27,base-94,28,0,Math.PI*2);ctx.fill();ctx.fillStyle='#58bd63';ctx.beginPath();ctx.arc(tx-10,base-126,12,0,Math.PI*2);ctx.fill();}
-    const water=ctx.createLinearGradient(0,GROUND-15,0,GROUND+115);water.addColorStop(0,'rgba(65,218,235,.95)');water.addColorStop(1,'rgba(20,119,186,.98)');ctx.fillStyle=water;ctx.fillRect(0,GROUND-5,W,H-GROUND+5);
-    const bubbleCount=[8,16,28][level-1];for(let i=0;i<bubbleCount;i++){const bx=(i*137+frame*speed*(.18+i%3*.06))%W,by=GROUND+22+((i*43+frame*(.35+i%4*.08))%(H-GROUND-28));ctx.globalAlpha=.22+.12*(i%3);ctx.strokeStyle='#d7ffff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(bx,by,2+(i%4),0,Math.PI*2);ctx.stroke();}ctx.globalAlpha=1;
+    // شارع واضح أسفل السمكة، وبحر يظهر في نهاية المسار عند الفوز.
+    ctx.fillStyle='#26364b';ctx.fillRect(0,GROUND-5,W,H-GROUND+5);ctx.fillStyle='#172337';ctx.fillRect(0,GROUND+8,W,H-GROUND-8);
+    ctx.fillStyle='#3f5165';ctx.fillRect(0,GROUND-5,W,13);ctx.fillStyle='#f7d66b';ctx.fillRect(0,GROUND+42,W,6);ctx.fillStyle='#26364b';for(let x=-80-(frame*speed)%170;x<W+170;x+=170)ctx.fillRect(x,GROUND+36,92,18);
+    ctx.fillStyle='#55bd70';ctx.fillRect(0,GROUND-12,W,7);
+    if(state==='returning'){const seaX=W-285;const sea=ctx.createLinearGradient(0,GROUND-110,0,H);sea.addColorStop(0,'rgba(75,224,240,.95)');sea.addColorStop(1,'rgba(18,105,190,.98)');ctx.fillStyle=sea;ctx.fillRect(seaX,GROUND-100,285,H-GROUND+100);ctx.strokeStyle='rgba(222,255,255,.75)';ctx.lineWidth=3;for(let y=GROUND-80;y<GROUND+30;y+=24){ctx.beginPath();for(let x=seaX;x<W;x+=44){ctx.moveTo(x,y);ctx.quadraticCurveTo(x+11,y-7,x+22,y);}ctx.stroke();}ctx.fillStyle='#1d8f57';ctx.beginPath();ctx.arc(W-120,GROUND-116,46,Math.PI,Math.PI*2);ctx.arc(W-210,GROUND-115,34,Math.PI,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.font='900 24px Cairo';ctx.fillText('البحر',W-220,GROUND-145);}
+    const bubbleCount=[3,14,30][level-1];for(let i=0;i<bubbleCount;i++){const bx=(i*137+frame*speed*(.18+i%3*.06))%W,by=GROUND+22+((i*43+frame*(.35+i%4*.08))%(H-GROUND-28));ctx.globalAlpha=.22+.12*(i%3);ctx.strokeStyle='#d7ffff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(bx,by,2+(i%4),0,Math.PI*2);ctx.stroke();}ctx.globalAlpha=1;
     ctx.strokeStyle='rgba(213,255,255,.7)';ctx.lineWidth=3;for(let y=GROUND+25;y<H;y+=28){ctx.beginPath();for(let x=0;x<W;x+=55){ctx.moveTo(x,y);ctx.quadraticCurveTo(x+14,y-5,x+28,y);}ctx.stroke();}ctx.fillStyle='#55bd70';ctx.fillRect(0,GROUND-10,W,14);ctx.fillStyle='rgba(255,255,255,.6)';ctx.fillRect(0,GROUND-9,W,3);
   }
   function drawFish(){ctx.save();ctx.translate(fish.x,fish.y);ctx.rotate(fish.angle);ctx.globalAlpha=.2;ctx.fillStyle='#4de6ff';ctx.beginPath();ctx.arc(0,0,fish.r+18,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;ctx.scale(1.35,1);ctx.fillStyle='#f23f73';ctx.beginPath();ctx.moveTo(-25,0);ctx.quadraticCurveTo(-55,-27,-62,-15);ctx.quadraticCurveTo(-53,0,-62,15);ctx.quadraticCurveTo(-50,28,-25,0);ctx.fill();const b=ctx.createLinearGradient(-30,-28,35,28);b.addColorStop(0,'#ffd166');b.addColorStop(.48,'#ff914d');b.addColorStop(1,'#ef3f70');ctx.fillStyle=b;ctx.beginPath();ctx.ellipse(0,0,35,27,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ff6f91';ctx.beginPath();ctx.moveTo(-6,-24);ctx.quadraticCurveTo(-12,-43,4,-38);ctx.quadraticCurveTo(15,-34,12,-20);ctx.fill();ctx.fillStyle='rgba(255,255,255,.25)';ctx.beginPath();ctx.arc(-10,-11,11,0,Math.PI*1.5);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(20,-8,9,0,Math.PI*2);ctx.fill();ctx.fillStyle='#10203b';ctx.beginPath();ctx.arc(23,-8,4.5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(25,-10,1.7,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#8b214a';ctx.lineWidth=3;ctx.beginPath();ctx.arc(28,9,7,0,Math.PI*.9);ctx.stroke();ctx.restore(); }
